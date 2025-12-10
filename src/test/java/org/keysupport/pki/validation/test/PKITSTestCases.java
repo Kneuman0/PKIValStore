@@ -113,6 +113,7 @@ public class PKITSTestCases {
         X509Certificate eeTest1 = endEntityCerts.get("1");
         try {
             PKIXCertPathBuilderResult result = validationTest.validateCertificate(eeTest1);
+            System.out.println(result.toString());
             assertTrue("Certificate validation should succeed for test case 1", result != null);
         } catch (Exception e) {
             fail("Test case 1 should pass validation but failed with: " + e.getMessage());
@@ -124,8 +125,13 @@ public class PKITSTestCases {
      */
     public static void main(String[] args) {
         PKITSTestCases testCases = new PKITSTestCases();
-        testCases.setUp();
-        testCases.testCase1();
+        try {
+            testCases.setUp();
+            testCases.testCase1();
+        } catch (Exception e) {
+            System.err.println("Error running test: " + e.getMessage());
+            e.printStackTrace();
+        }
         System.out.println("PKI Validation Test Harness");
         System.out.println("This test harness will be populated with your provided test data");
     }

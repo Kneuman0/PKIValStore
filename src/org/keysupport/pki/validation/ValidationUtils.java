@@ -529,7 +529,7 @@ public class ValidationUtils {
 								childCertCache.setIssuerCertId(issuerCertId);
 								CertID subjectCertId = null;
 								try {
-									subjectCertId = ValidationUtils.getCertIdentifier(certCache.getCertificate(), childCertCache.getCertificate()).toASN1Object();
+									subjectCertId = ValidationUtils.getCertIdentifier(certCache.getCertificate(), childCertCache.getCertificate()).toASN1Primitive();
 								} catch (ValidationException e) {
 									LOG.fatal("Error generating CertID for child: " + e.getMessage(), e);
 								}

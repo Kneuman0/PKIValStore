@@ -59,12 +59,48 @@ public class CertificateCacheManager {
 			+ "-----END CERTIFICATE-----";
 	
 
+	/**
+	 * Get the singleton instance using the default hardcoded trust anchor.
+	 * This will perform SIA discovery over the network.
+	 * @return CertificateCacheManager singleton instance
+	 */
 	public static synchronized CertificateCacheManager getInstance() {
 		if (instance == null) {
+			// Use the hardcoded Federal Common Policy CA
 			instance = new CertificateCacheManager(null);
+			X509Certificate defaultTrustAnchor = null;
+			try {
+				// CertificateFactory cf = CertificateFactory.getInstance("X509");
+				// ByteArrayInputStream bais = new ByteArrayInputStream(COMMON_SHA2_PEM.getBytes());
+				// defaultTrustAnchor = (X509Certificate) cf.generateCertificate(bais);
+			} catch (CertificateException e) {
+				LOG.fatal("Failed to load default trust anchor", e);
+			}
+			instance = new CertificateCacheManager(defaultTrustAnchor);
 		}
 		instance.flattenCache();
 		return instance;
+	}
+
+	/**
+	 * Get the singleton instance using a provided trust anchor.
+	 * Use this for testing or when using a different PKI hierarchy.
+	 * @param trustAnchor The trust anchor certificate to use
+	 * @return CertificateCacheManager singleton instance
+	 */
+	public static synchronized CertificateCacheManager getInstance(X509Certificate trustAnchor) {
+		if (instance == null) {
+			instance = new CertificateCacheManager(trustAnchor);
+		}
+		instance.flattenCache();
+		return instance;
+	}
+
+	/**
+	 * Reset the singleton instance. Use this to reinitialize with a different trust anchor.
+	 */
+	public static synchronized void resetInstance() {
+		instance = null;
 	}
 
 	
@@ -89,7 +125,7 @@ public class CertificateCacheManager {
 			 * Since this is our Trust Anchor, we are going to set the
 			 * issuer CertID to match the subject
 			 */
-			this.cache.setSubjectCertId(ValidationUtils.getCertIdentifier(this.cache.getCertificate(), this.cache.getCertificate()).toASN1Object());
+			this.cache.setSubjectCertId(ValidationUtils.getCertIdentifier(this.cache.getCertificate(), this.cache.getCertificate()).toASN1Primitive());
 			
 			this.cache.setIssuerCertId(this.cache.getSubjectCertId());
 			/*
@@ -147,8 +183,6 @@ public class CertificateCacheManager {
 			 * 
 			 * THEN, we can provide a response back to the client.
 			 */
-		} catch(CertificateException e) {
-			LOG.fatal("Problem with Trust Anchor.", e);
 		} catch (ValidationException e) {
 			LOG.fatal("Problem with Trust Anchor.", e);
 		} catch (PKIXValidatorException e) {

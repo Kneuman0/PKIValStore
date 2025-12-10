@@ -18,7 +18,9 @@ import org.bouncycastle.cert.ocsp.OCSPReq;
 import org.bouncycastle.cert.ocsp.OCSPReqBuilder;
 import org.bouncycastle.cert.ocsp.OCSPResp;
 import org.bouncycastle.cert.ocsp.SingleResp;
-import org.bouncycastle.ocsp.OCSPRespStatus;
+import org.bouncycastle.cert.ocsp.OCSPRespBuilder;
+import org.bouncycastle.cert.ocsp.RevokedStatus;
+import org.bouncycastle.cert.ocsp.UnknownStatus;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentVerifierProviderBuilder;
 import org.keysupport.httpclient.HttpClient;
@@ -74,7 +76,7 @@ public class OCSPClient {
 			//TODO:  Add null check
 			if (resBa != null) {
 				OCSPResp resp = new OCSPResp(resBa);
-				if (OCSPRespStatus.SUCCESSFUL == resp.getStatus()) {
+				if (OCSPRespBuilder.SUCCESSFUL == resp.getStatus()) {
 
 					// writer.println("OCSP Response:");
 					//bIn = new ASN1InputStream(new ByteArrayInputStream(resBa));
@@ -124,10 +126,10 @@ public class OCSPClient {
 							if (status == CertificateStatus.GOOD) {
 								LOG.info("OCSP Response for " + clientCert.getSubjectX500Principal().getName() + ": GOOD");
 								revocationStatus = OCSPClient.GOOD;
-							} else if (status instanceof org.bouncycastle.ocsp.RevokedStatus) {
+							} else if (status instanceof RevokedStatus) {
 								LOG.info("OCSP Response for " + clientCert.getSubjectX500Principal().getName() + ": REVOKED");
 								revocationStatus = OCSPClient.REVOKED;
-							} else if (status instanceof org.bouncycastle.ocsp.UnknownStatus) {
+							} else if (status instanceof UnknownStatus) {
 								LOG.info("OCSP Response for " + clientCert.getSubjectX500Principal().getName() + ": UNKNOWN");
 								revocationStatus = OCSPClient.UNKNOWN;
 							}

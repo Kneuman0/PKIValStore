@@ -16,18 +16,25 @@ import java.security.cert.PKIXCertPathValidatorResult;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+import java.security.cert.CRLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.security.KeyStore;
 
+import org.bouncycastle.asn1.ocsp.CertID;
 import org.junit.Before;
 import org.junit.Test;
 import org.keysupport.pki.validation.PKIXValidator;
 import org.keysupport.pki.validation.PKIXValidatorException;
+import org.keysupport.pki.validation.PKIXValidatorManager;
 import org.keysupport.pki.validation.ValidationUtils;
+import org.keysupport.pki.validation.cache.CertificateCache;
+import org.keysupport.pki.validation.cache.CertificateCacheManager;
+import org.keysupport.pki.validation.cache.CRLCacheManager;
 
 /**
  * Test class for PKI Validation Library
@@ -48,8 +55,8 @@ public class PKITSValidationTest {
     private List<X509CRL> crls = new ArrayList<>();
     private CertificateCacheManager cacheManager;
     private CRLCacheManager crlManager;
-    private String testDataPKITS = "src/test/resources/PKITS";
-    private String trustAnchorStore = "resources/PKITS/truststore/trust_anchors.jks";
+    private String testDataPKITS = "resources/PKITS";
+    private String trust_anchor_store = "resources/PKITS/truststore/pkits.jks";
     private PKIXValidatorManager validatorManager;
     
     /**
@@ -65,7 +72,6 @@ public class PKITSValidationTest {
     public void setValidatorManager(PKIXValidatorManager validatorManager) {
         this.validatorManager = validatorManager;
     }
-    private PKIXValidator validator;
     
     /**
      * @return the trustAnchorCert
@@ -91,17 +97,17 @@ public class PKITSValidationTest {
     }
     
     /**
-     * @return the trustAnchorStore
+     * @return the trust_anchor_store
      */
     public String getTrustAnchorStore() {
-        return trustAnchorStore;
+        return trust_anchor_store;
     }
     
     /**
-     * @param trustAnchorStore the trustAnchorStore to set
+     * @param trustAnchorStore the trust_anchor_store to set
      */
     public void setTrustAnchorStore(String trustAnchorStore) {
-        this.trustAnchorStore = trustAnchorStore;
+        this.trust_anchor_store = trustAnchorStore;
     }
     
     /**
@@ -123,8 +129,8 @@ public class PKITSValidationTest {
         cacheManager = CertificateCacheManager.getInstance(loadTrustAnchor(trust_anchor_store));
         crlManager = CRLCacheManager.getInstance();
         loadPKITSTestData(testDataPKITS);
-        validatorManager = PKITSValidatorManager.getInstance(cacheManager, crlManager);
-        validator = validatorManager.getValidator();
+        validatorManager = PKIXValidatorManager.getInstance(cacheManager, crlManager);
+        validator = validatorManager.getPKIXValidator();
     }
     
     /**
@@ -202,7 +208,11 @@ public class PKITSValidationTest {
             String fileName = file.getName().toLowerCase();
             
             if (file.isDirectory()) {
-                processPKITSDirectory(file);
+                
+
+                List<X509Certificate> chain = loadOrderedIntermediateCertificates(file);
+
+                
             } else if (fileName.endsWith(".crt") || fileName.endsWith(".cer")) {
                 // Skip trust anchor certificates - these will be loaded separately
                 if (fileName.contains("trust") || fileName.contains("anchor")) {
@@ -210,7 +220,9 @@ public class PKITSValidationTest {
                 } else if (fileName.contains("intermediate")) {
                     X509Certificate cert = loadCertificate(file.getAbsolutePath());
                     // Add intermediate certificate to cache manager
-                    CertificateCacheManager.putfCacheEntry(new CertificateCache(cert));
+                    CertificateCache certCache = new CertificateCache(cert);
+                    certCache.setIssuerCertId(CertID).getInstance(cert);
+                    cacheManager.putfCacheEntry(certCache);
                     
                     System.out.println("Added intermediate certificate: " + file.getName());
                 }
@@ -222,12 +234,91 @@ public class PKITSValidationTest {
             }
         }
     }
+
+    /**
+     * TODO: figure out the data structure of the Certificate cache and implement methods to add to it
+     * @param chain
+     */
+    private void loadCertCache(List<X509Certificate> chain){
+        if(chain.size() == 0){
+
+        }
+    }
+
+    /**
+     * Reads intermediate certificates from a directory and returns them ordered by their numbering
+     * @param directory Directory containing intermediate certificate files
+     * @return Ordered list of intermediate certificates (empty if none found)
+     */
+    private List<X509Certificate> loadOrderedIntermediateCertificates(File directory) throws CertificateException, IOException {
+        List<X509Certificate> orderedCerts = new ArrayList<>();
+        
+        if (directory == null || !directory.exists() || !directory.isDirectory()) {
+            return orderedCerts;
+        }
+        
+        // Find all intermediate certificate files
+        List<File> intermediateCertFiles = new ArrayList<>();
+        for (File file : directory.listFiles()) {
+            String fileName = file.getName().toLowerCase();
+            if ((fileName.endsWith(".crt") || fileName.endsWith(".cer")) && 
+                fileName.contains("intermediate")) {
+                intermediateCertFiles.add(file);
+            }
+        }
+        
+        if (intermediateCertFiles.isEmpty()) {
+            return orderedCerts;
+        }
+        
+        // Sort files by their numeric suffix (if present)
+        intermediateCertFiles.sort((f1, f2) -> {
+            int num1 = extractNumber(f1.getName());
+            int num2 = extractNumber(f2.getName());
+            return Integer.compare(num1, num2);
+        });
+        
+        // Load certificates in order
+        for (File certFile : intermediateCertFiles) {
+            X509Certificate cert = loadCertificate(certFile.getAbsolutePath());
+            orderedCerts.add(cert);
+        }
+        
+        return orderedCerts;
+    }
+    
+    /**
+     * Extracts a number from a filename, returns 0 if no number found
+     * @param fileName The filename to extract number from
+     * @return The extracted number or 0 if none found
+     */
+    private int extractNumber(String fileName) {
+        // Remove extension
+        String nameWithoutExt = fileName.replaceAll("\\.(crt|cer)$", "");
+        
+        // Find trailing digits
+        StringBuilder digits = new StringBuilder();
+        for (int i = nameWithoutExt.length() - 1; i >= 0; i--) {
+            char c = nameWithoutExt.charAt(i);
+            if (Character.isDigit(c)) {
+                digits.insert(0, c);
+            } else {
+                break;
+            }
+        }
+        
+        if (digits.length() > 0) {
+            return Integer.parseInt(digits.toString());
+        }
+        return 0;
+    }
+
     /**
      * Helper method to load a CRL from a file
      * @param filePath Path to the CRL file
      * @return X509CRL object
      */
-    private X509CRL loadCRL(String filePath) throws CertificateException, IOException {
+    private X509CRL loadCRL(String filePath) throws CertificateException, IOException, CRLException {
         try (FileInputStream fis = new FileInputStream(new File(filePath))) {
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
             return (X509CRL) cf.generateCRL(fis);

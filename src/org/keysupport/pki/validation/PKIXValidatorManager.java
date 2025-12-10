@@ -36,11 +36,44 @@ public class PKIXValidatorManager {
 	private static CertStore intermediateStore = null;
 	private static CertStore crlStore = null;
 
+	/**
+	 * Get the singleton instance using the default CertificateCacheManager and CRLCacheManager.
+	 * This assumes getInstance() has already been called on CertificateCacheManager.
+	 * @return PKIXValidatorManager singleton instance
+	 * @throws PKIXValidatorException if initialization fails
+	 */
 	public static synchronized PKIXValidatorManager getInstance() throws PKIXValidatorException {
 		if (instance == null) {
 			instance = new PKIXValidatorManager();
+			CertificateCacheManager certMgr = CertificateCacheManager.getInstance();
+			CRLCacheManager crlMgr = CRLCacheManager.getInstance();
+			instance = new PKIXValidatorManager(certMgr, crlMgr);
 		}
 		return instance;
+	}
+
+	/**
+	 * Get the singleton instance using provided CertificateCacheManager and CRLCacheManager.
+	 * Use this for testing or when using pre-populated cache managers.
+	 * @param certManager The certificate cache manager to use
+	 * @param crlManager The CRL cache manager to use
+	 * @return PKIXValidatorManager singleton instance
+	 * @throws PKIXValidatorException if initialization fails
+	 */
+	public static synchronized PKIXValidatorManager getInstance(
+			CertificateCacheManager certManager, 
+			CRLCacheManager crlManager) throws PKIXValidatorException {
+		if (instance == null) {
+			instance = new PKIXValidatorManager(certManager, crlManager);
+		}
+		return instance;
+	}
+
+	/**
+	 * Reset the singleton instance. Use this to reinitialize with different cache managers.
+	 */
+	public static synchronized void resetInstance() {
+		instance = null;
 	}
 
 	private PKIXValidatorManager(CertificateCacheManager certManager, CRLCacheManager crlManager) throws PKIXValidatorException {
@@ -137,7 +170,9 @@ public class PKIXValidatorManager {
 
 	public synchronized void refreshStoresFromCache() throws PKIXValidatorException {
 		instance = null;
-		instance = new PKIXValidatorManager();
+		CertificateCacheManager certMgr = CertificateCacheManager.getInstance();
+		CRLCacheManager crlMgr = CRLCacheManager.getInstance();
+		instance = new PKIXValidatorManager(certMgr, crlMgr);
 	}
 
 	/*
