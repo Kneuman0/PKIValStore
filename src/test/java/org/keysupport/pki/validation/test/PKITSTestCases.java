@@ -49,6 +49,7 @@ public class PKITSTestCases {
         
         // Load all end entity certificates
         loadEndEntityCertificates();
+
     }
     
     /**
@@ -101,47 +102,32 @@ public class PKITSTestCases {
         return null;
     }
     
-    /**
-     * Helper method to run a test case
-     * @param testCaseId Test case ID
-     * @param shouldPass Whether the validation should pass or fail
-     */
-    private void runTestCase(String testCaseId, boolean shouldPass) {
-        X509Certificate cert = endEntityCerts.get(testCaseId);
-        assertNotNull("End entity certificate not found for test case: " + testCaseId, cert);
-        
-        try {
-            System.out.println("Running test case " + testCaseId + "...");
-            PKIXCertPathBuilderResult result = validationTest.validateCertificate(cert);
-            
-            if (shouldPass) {
-                // Test should pass, so we expect a valid result
-                assertNotNull("Expected validation to pass for test case " + testCaseId, result);
-                System.out.println("Test case " + testCaseId + " passed as expected");
-            } else {
-                // Test should fail, but it passed
-                fail("Expected validation to fail for test case " + testCaseId + ", but it passed");
-            }
-        } catch (PKIXValidatorException e) {
-            if (shouldPass) {
-                // Test should pass, but it failed
-                fail("Expected validation to pass for test case " + testCaseId + ", but it failed: " + e.getMessage());
-            } else {
-                // Test should fail, and it did fail
-                System.out.println("Test case " + testCaseId + " failed as expected: " + e.getMessage());
-            }
-        } catch (Exception e) {
-            fail("Unexpected exception in test case " + testCaseId + ": " + e.getMessage());
-        }
-    }
+
     
     /**
      * Test case 1: Valid Signatures Test Case
      * This test case verifies that a valid certification path is correctly validated
      */
     @Test
-    public void testCase1_ValidSignatures() {
-        // Implementation will be provided based on your instructions
+    public void testCase1() {
+        X509Certificate eeTest1 = endEntityCerts.get("1");
+        try {
+            PKIXCertPathBuilderResult result = validationTest.validateCertificate(eeTest1);
+            assertTrue("Certificate validation should succeed for test case 1", result != null);
+        } catch (Exception e) {
+            fail("Test case 1 should pass validation but failed with: " + e.getMessage());
+        }
+    }
+
+        /**
+     * Main method to run the test harness from command line
+     */
+    public static void main(String[] args) {
+        PKITSTestCases testCases = new PKITSTestCases();
+        testCases.setUp();
+        testCases.testCase1();
+        System.out.println("PKI Validation Test Harness");
+        System.out.println("This test harness will be populated with your provided test data");
     }
     
     // Additional test case methods will be added for all 76 test cases
