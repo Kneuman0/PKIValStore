@@ -43,10 +43,10 @@ public class PKIXValidatorManager {
 		return instance;
 	}
 
-	private PKIXValidatorManager() throws PKIXValidatorException {
+	private PKIXValidatorManager(CertificateCacheManager certManager, CRLCacheManager crlManager) throws PKIXValidatorException {
 		LOG.info("Initializing PKIX Validator Manager");
-		certManager = CertificateCacheManager.getInstance();
-		crlManager = CRLCacheManager.getInstance();
+		this.certManager = certManager;
+		this.crlManager = crlManager;
 		/*
 		 * Get the trust anchor
 		 */

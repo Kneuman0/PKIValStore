@@ -46,7 +46,70 @@ public class PKITSValidationTest {
     private X509Certificate trustAnchorCert;
     private List<X509Certificate> intermediateCerts = new ArrayList<>();
     private List<X509CRL> crls = new ArrayList<>();
-    private List<X509Certificate> endEntityCerts = new ArrayList<>();
+    private CertificateCacheManager cacheManager;
+    private CRLCacheManager crlManager;
+    private String testDataPKITS = "src/test/resources/PKITS";
+    private String trustAnchorStore = "resources/PKITS/truststore/trust_anchors.jks";
+    private PKIXValidatorManager validatorManager;
+    
+    /**
+     * @return the validatorManager
+     */
+    public PKIXValidatorManager getValidatorManager() {
+        return validatorManager;
+    }
+    
+    /**
+     * @param validatorManager the validatorManager to set
+     */
+    public void setValidatorManager(PKIXValidatorManager validatorManager) {
+        this.validatorManager = validatorManager;
+    }
+    private PKIXValidator validator;
+    
+    /**
+     * @return the trustAnchorCert
+     */
+    public X509Certificate getTrustAnchorCert() {
+        return trustAnchorCert;
+    }
+    
+
+    
+    /**
+     * @return the testDataPKITS
+     */
+    public String getTestDataPKITS() {
+        return testDataPKITS;
+    }
+    
+    /**
+     * @param testDataPKITS the testDataPKITS to set
+     */
+    public void setTestDataPKITS(String testDataPKITS) {
+        this.testDataPKITS = testDataPKITS;
+    }
+    
+    /**
+     * @return the trustAnchorStore
+     */
+    public String getTrustAnchorStore() {
+        return trustAnchorStore;
+    }
+    
+    /**
+     * @param trustAnchorStore the trustAnchorStore to set
+     */
+    public void setTrustAnchorStore(String trustAnchorStore) {
+        this.trustAnchorStore = trustAnchorStore;
+    }
+    
+    /**
+     * @return the validator
+     */
+    public PKIXValidator getValidator() {
+        return validator;
+    }
     
     /**
      * Setup method to initialize the test environment
@@ -56,6 +119,12 @@ public class PKITSValidationTest {
     public void setUp() throws Exception {
         // This setup will be completed when you provide the test data
         System.out.println("Setting up PKITSValidationTest...");
+
+        cacheManager = CertificateCacheManager.getInstance(loadTrustAnchor(trust_anchor_store));
+        crlManager = CRLCacheManager.getInstance();
+        loadPKITSTestData(testDataPKITS);
+        validatorManager = PKITSValidatorManager.getInstance(cacheManager, crlManager);
+        validator = validatorManager.getValidator();
     }
     
     /**
@@ -68,30 +137,91 @@ public class PKITSValidationTest {
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
             return (X509Certificate) cf.generateCertificate(fis);
         }
+
+        
+
+    }
+
+    /**
+     * Loads the trust anchor certificate from a JKS truststore
+     * @param truststorePath Path to the truststore file
+     * @return The trust anchor certificate
+     * @throws Exception If any error occurs during loading
+     */
+    private X509Certificate loadTrustAnchor(String truststorePath) throws Exception {
+        KeyStore trustStore = KeyStore.getInstance("JKS");
+        char[] password = "changeit".toCharArray();
+        
+        try (FileInputStream fis = new FileInputStream(truststorePath)) {
+            trustStore.load(fis, password);
+        }
+        
+        // Assuming the first certificate in the store is the trust anchor
+        String alias = trustStore.aliases().nextElement();
+        X509Certificate trustAnchorCert = (X509Certificate) trustStore.getCertificate(alias);
+        
+        if (trustAnchorCert == null) {
+            throw new Exception("Trust anchor certificate not found in truststore");
+        }
+        
+        this.trustAnchorCert = trustAnchorCert;
+
+        System.out.println("Loaded trust anchor: " + trustAnchorCert.getSubjectX500Principal().getName());
+        return trustAnchorCert;
+    }
+    /**
+     * Method to populate the trust anchor, intermediate store and CRL store from the PKITS directory
+     * @param baseDirectory Base directory containing the PKITS test files
+     */
+    public void loadPKITSTestData(String baseDirectory) throws Exception {
+        File baseDir = new File(baseDirectory);
+        if (!baseDir.exists() || !baseDir.isDirectory()) {
+            throw new IOException("Base directory does not exist or is not a directory: " + baseDirectory);
+        }
+        
+        // Process all subdirectories
+        for (File subDir : baseDir.listFiles(File::isDirectory)) {
+            processPKITSDirectory(subDir);
+        }
+        
+        // Initialize validator with the loaded data
+        initializeValidator();
+        
+        System.out.println("Loaded trust anchor: " + (trustAnchorCert != null ? 
+            trustAnchorCert.getSubjectX500Principal().getName() : "None"));
+        System.out.println("Loaded " + intermediateCerts.size() + " intermediate certificates");
+        System.out.println("Loaded " + crls.size() + " CRLs");
     }
     
     /**
-     * Helper method to load a certificate from a PEM string
-     * @param pemCert PEM encoded certificate string
-     * @return X509Certificate object
+     * Process a single PKITS directory to load certificates and CRLs
+     * @param directory Directory to process
      */
-    private X509Certificate loadCertificateFromPEM(String pemCert) throws CertificateException {
-        // Remove header, footer, and newlines to get the Base64 encoded certificate
-        String base64Cert = pemCert
-                .replace("-----BEGIN CERTIFICATE-----", "")
-                .replace("-----END CERTIFICATE-----", "")
-                .replaceAll("\\s+", "");
-        
-        // Decode and create certificate
-        byte[] certBytes = java.util.Base64.getDecoder().decode(base64Cert);
-        CertificateFactory cf = CertificateFactory.getInstance("X.509");
-        try (InputStream is = new ByteArrayInputStream(certBytes)) {
-            return (X509Certificate) cf.generateCertificate(is);
-        } catch (IOException e) {
-            throw new CertificateException("Error reading certificate data", e);
+    private void processPKITSDirectory(File directory) throws Exception {
+        for (File file : directory.listFiles()) {
+            String fileName = file.getName().toLowerCase();
+            
+            if (file.isDirectory()) {
+                processPKITSDirectory(file);
+            } else if (fileName.endsWith(".crt") || fileName.endsWith(".cer")) {
+                // Skip trust anchor certificates - these will be loaded separately
+                if (fileName.contains("trust") || fileName.contains("anchor")) {
+                    continue;
+                } else if (fileName.contains("intermediate")) {
+                    X509Certificate cert = loadCertificate(file.getAbsolutePath());
+                    // Add intermediate certificate to cache manager
+                    CertificateCacheManager.putfCacheEntry(new CertificateCache(cert));
+                    
+                    System.out.println("Added intermediate certificate: " + file.getName());
+                }
+                // Skip end-entity certificates
+            } else if (fileName.endsWith(".crl")) {
+                // Add CRL to cache manager
+                crlManager.getCRLCache().update(file.toURI(), loadCRL(file.getAbsolutePath()));
+                System.out.println("Added CRL: " + file.getName());
+            }
         }
     }
-    
     /**
      * Helper method to load a CRL from a file
      * @param filePath Path to the CRL file
@@ -112,20 +242,6 @@ public class PKITSValidationTest {
             throw new IllegalStateException("Trust anchor certificate must be provided");
         }
         
-        // Create trust anchor
-        trustAnchor = new TrustAnchor(trustAnchorCert, null);
-        
-        // Create intermediate certificate store
-        CertStoreParameters intermediateParams = new CollectionCertStoreParameters(intermediateCerts);
-        intermediateStore = CertStore.getInstance("Collection", intermediateParams);
-        
-        // Create CRL store
-        CertStoreParameters crlParams = new CollectionCertStoreParameters(crls);
-        crlStore = CertStore.getInstance("Collection", crlParams);
-        
-        // Create and configure validator
-        validator = new PKIXValidator(trustAnchor, intermediateStore, crlStore);
-        
         // Configure validation parameters
         validator.setValidityDate(new Date()); // Current date
         validator.setRequreExplicitPolicy(true);
@@ -135,70 +251,23 @@ public class PKITSValidationTest {
         validator.setMaxPathLength(20);
     }
     
-    /**
-     * Method to load trust anchor from PEM string
-     * @param pemCert PEM encoded trust anchor certificate
-     */
-    public void setTrustAnchor(String pemCert) throws CertificateException {
-        trustAnchorCert = loadCertificateFromPEM(pemCert);
-        System.out.println("Trust anchor loaded: " + trustAnchorCert.getSubjectX500Principal().getName());
-    }
     
-    /**
-     * Method to add an intermediate certificate from PEM string
-     * @param pemCert PEM encoded intermediate certificate
-     */
-    public void addIntermediateCertificate(String pemCert) throws CertificateException {
-        X509Certificate cert = loadCertificateFromPEM(pemCert);
-        intermediateCerts.add(cert);
-        System.out.println("Intermediate certificate added: " + cert.getSubjectX500Principal().getName());
-    }
-    
-    /**
-     * Method to add a CRL from a file path
-     * @param crlPath Path to the CRL file
-     */
-    public void addCRL(String crlPath) throws CertificateException, IOException {
-        X509CRL crl = loadCRL(crlPath);
-        crls.add(crl);
-        System.out.println("CRL added: " + crl.getIssuerX500Principal().getName());
-    }
-    
-    /**
-     * Method to add an end entity certificate from PEM string
-     * @param pemCert PEM encoded end entity certificate
-     */
-    public void addEndEntityCertificate(String pemCert) throws CertificateException {
-        X509Certificate cert = loadCertificateFromPEM(pemCert);
-        endEntityCerts.add(cert);
-        System.out.println("End entity certificate added: " + cert.getSubjectX500Principal().getName());
-    }
-    
-    /**
-     * Test method to validate a certificate path
-     * This will be implemented when you provide the test data
-     */
-    @Test
-    public void testValidateCertificatePath() throws Exception {
-        // This test will be implemented when you provide the test data
-        System.out.println("Certificate path validation test will be implemented with provided data");
-    }
+
     
     /**
      * Method to validate a specific end entity certificate
      * @param certIndex Index of the end entity certificate to validate
      * @return Validation result
      */
-    public PKIXCertPathBuilderResult validateCertificate(int certIndex) throws Exception {
+    public PKIXCertPathBuilderResult validateCertificate(X509Certificate cert) throws Exception {
         if (validator == null) {
             initializeValidator();
         }
         
-        if (certIndex < 0 || certIndex >= endEntityCerts.size()) {
+        if (cert == null) {
             throw new IllegalArgumentException("Certificate index out of bounds");
         }
         
-        X509Certificate cert = endEntityCerts.get(certIndex);
         System.out.println("Validating certificate: " + cert.getSubjectX500Principal().getName());
         
         // Perform validation with revocation checking
@@ -232,11 +301,5 @@ public class PKITSValidationTest {
         }
     }
     
-    /**
-     * Main method to run the test harness from command line
-     */
-    public static void main(String[] args) {
-        System.out.println("PKI Validation Test Harness");
-        System.out.println("This test harness will be populated with your provided test data");
-    }
+
 }

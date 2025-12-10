@@ -67,6 +67,8 @@ public class CertificateCacheManager {
 		return instance;
 	}
 
+	
+
 	private CertificateCacheManager(X509Certificate trustAnchor) {
 		BasicConfigurator.configure();
 		Logger.getRootLogger().setLevel(Level.INFO);
@@ -79,9 +81,9 @@ public class CertificateCacheManager {
 		Security.addProvider(bc);
 
 		try {
-			CertificateFactory cf = CertificateFactory.getInstance("X509");
-			ByteArrayInputStream bais = new ByteArrayInputStream(COMMON_SHA2_PEM.getBytes());
-			trustAnchor = (X509Certificate) cf.generateCertificate(bais);
+			// CertificateFactory cf = CertificateFactory.getInstance("X509");
+			// ByteArrayInputStream bais = new ByteArrayInputStream(COMMON_SHA2_PEM.getBytes());
+			// trustAnchor = (X509Certificate) cf.generateCertificate(bais);
 			this.cache = new CertificateCache(trustAnchor);
 			/*
 			 * Since this is our Trust Anchor, we are going to set the
