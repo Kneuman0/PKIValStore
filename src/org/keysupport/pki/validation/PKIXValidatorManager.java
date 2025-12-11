@@ -1,6 +1,8 @@
 package org.keysupport.pki.validation;
 
+import java.io.FileInputStream;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertPath;
 import java.security.cert.CertStore;
@@ -35,6 +37,7 @@ public class PKIXValidatorManager {
 	
 	private static CertStore intermediateStore = null;
 	private static CertStore crlStore = null;
+	
 
 	/**
 	 * Get the singleton instance using the default CertificateCacheManager and CRLCacheManager.
@@ -50,6 +53,47 @@ public class PKIXValidatorManager {
 			instance = new PKIXValidatorManager(certMgr, crlMgr);
 		}
 		return instance;
+	}
+
+	private PKIXValidatorManager() throws PKIXValidatorException {
+		LOG.info("Initializing PKIX Validator Manager");
+		certManager = CertificateCacheManager.getInstance();
+		crlManager = CRLCacheManager.getInstance();
+		/*
+		 * Get the trust anchor
+		 */
+		X509Certificate trustAnchorCert = certManager.getCache().getCertificate();
+		trustAnchor = new TrustAnchor(trustAnchorCert, null);
+		if (trustAnchor == null) {
+			LOG.fatal("Failed to initialize Trust Anchor");
+			throw new PKIXValidatorException("Failed to initialize Trust Anchor");
+		}
+		/*
+		 * Get intermediates into a CertStore
+		 */
+		ArrayList<X509Certificate> iCertList = new ArrayList<X509Certificate>();
+		Collection<CertificateCache> it = certManager.getAllIntermediateEntries();
+		for (CertificateCache entry: it) {
+			iCertList.add(entry.getCertificate());
+		}
+		CertStoreParameters intParams = new CollectionCertStoreParameters(iCertList);
+		try {
+			intermediateStore = CertStore.getInstance("Collection", intParams);
+		} catch (InvalidAlgorithmParameterException | NoSuchAlgorithmException e) {
+			LOG.fatal("Failed to initialize Intermediate Store: " + e.getMessage());
+			throw new PKIXValidatorException("Failed to initialize Intermediate Store", e);
+		}
+		/*
+		 * Get CRLs into a store
+		 */
+		Collection<X509CRL> crlCol = crlManager.getCRLCache().getCRLs();
+		CertStoreParameters crls = new CollectionCertStoreParameters(crlCol);
+		try {
+			crlStore = CertStore.getInstance("Collection", crls);
+		} catch (InvalidAlgorithmParameterException | NoSuchAlgorithmException e) {
+			LOG.fatal("Failed to initialize CRL Store: " + e.getMessage());
+			throw new PKIXValidatorException("Failed to initialize Intermediate Store", e);
+		}
 	}
 
 	/**
@@ -221,5 +265,6 @@ public class PKIXValidatorManager {
 		
 		return paths.toArray(new CertPath[paths.size()]);
 	}
+
 
 }

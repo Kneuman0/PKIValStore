@@ -1,6 +1,8 @@
 package org.keysupport.pki.validation.cache;
 
 import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
+import java.security.KeyStore;
 import java.security.Security;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
@@ -27,6 +29,11 @@ public class CertificateCacheManager {
 	private volatile CertificateCache cache = null;
 	private volatile ConcurrentHashMap<CertID, CertificateCache> fCache = null;
 	private static final Log LOG = LogFactory.getLog(CertificateCacheManager.class);
+	
+	//Trust Anchor store for dev PKITS testing
+	//TODO: Change to the trust store this library will ship with
+	private static char[] password = "changeit".toCharArray();
+	private static String trustAnchorStore = "resources/PKITS/truststore/pkits.jks";
 
 	/*
 	 * TODO: Move the following to properties
@@ -73,7 +80,8 @@ public class CertificateCacheManager {
 				// CertificateFactory cf = CertificateFactory.getInstance("X509");
 				// ByteArrayInputStream bais = new ByteArrayInputStream(COMMON_SHA2_PEM.getBytes());
 				// defaultTrustAnchor = (X509Certificate) cf.generateCertificate(bais);
-			} catch (CertificateException e) {
+				defaultTrustAnchor = loadTrustAnchor(trustAnchorStore,password);
+			} catch (Exception e) {
 				LOG.fatal("Failed to load default trust anchor", e);
 			}
 			instance = new CertificateCacheManager(defaultTrustAnchor);
@@ -268,6 +276,33 @@ public class CertificateCacheManager {
 	private synchronized void getCRLs() {
 		ValidationUtils.getCRLs(this.fCache);
 	}
+
+	 /**
+     * Loads the trust anchor certificate from a JKS truststore
+     * @param truststorePath Path to the truststore file
+     * @return The trust anchor certificate
+     * @throws Exception If any error occurs during loading
+     */
+    private static X509Certificate loadTrustAnchor(String truststorePath, char[] password) throws Exception {
+        KeyStore trustStore = KeyStore.getInstance("JKS");
+        
+        
+        try (FileInputStream fis = new FileInputStream(truststorePath)) {
+            trustStore.load(fis, password);
+        }
+        
+        // Assuming the first certificate in the store is the trust anchor
+        String alias = trustStore.aliases().nextElement();
+        X509Certificate trustAnchorCert = (X509Certificate) trustStore.getCertificate(alias);
+        
+        if (trustAnchorCert == null) {
+            throw new Exception("Trust anchor certificate not found in truststore");
+        }
+        
+       
+        System.out.println("Loaded trust anchor: " + trustAnchorCert.getSubjectX500Principal().getName());
+        return trustAnchorCert;
+    }
 	
 	
 }
