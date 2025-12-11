@@ -30,10 +30,10 @@ public class CertificateCacheManager {
 	private volatile ConcurrentHashMap<CertID, CertificateCache> fCache = null;
 	private static final Log LOG = LogFactory.getLog(CertificateCacheManager.class);
 	
-	//Trust Anchor store for dev PKITS testing
+	//Trust Anchor store for dev PDTS testing
 	//TODO: Change to the trust store this library will ship with
 	private static char[] password = "changeit".toCharArray();
-	private static String trustAnchorStore = "resources/PKITS/truststore/pkits.jks";
+	private static String trustAnchorStore = "resources/PDTS/truststore/pdts.jks";
 
 	/*
 	 * TODO: Move the following to properties
@@ -72,9 +72,11 @@ public class CertificateCacheManager {
 	 * @return CertificateCacheManager singleton instance
 	 */
 	public static synchronized CertificateCacheManager getInstance() {
+		LOG.info("getInstance() called - instance is " + (instance == null ? "null" : "NOT null"));
 		if (instance == null) {
 			// Use the hardcoded Federal Common Policy CA
-			instance = new CertificateCacheManager(null);
+			// LOG.info("Creating new CertificateCacheManager with null trust anchor (will load default)");
+			// instance = new CertificateCacheManager(null);
 			X509Certificate defaultTrustAnchor = null;
 			try {
 				// CertificateFactory cf = CertificateFactory.getInstance("X509");
@@ -238,6 +240,7 @@ public class CertificateCacheManager {
 			//clone.setIssuerCertId(cache.getIssuerCertId());
 			//clone.setSubjectCertId(cache.getSubjectCertId());
 			//return clone;
+			LOG.info("getSigner() returning null for Trust Anchor CertID: " + subject.toString());
 			return null;
 		} else 
 		if (this.fCache.containsKey(subject)) {

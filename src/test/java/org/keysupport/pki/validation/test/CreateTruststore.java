@@ -14,10 +14,10 @@ public class CreateTruststore {
     public static void main(String[] args) {
         try {
             // Path to the certificate
-            String certPath = "C:/Users/neumankyle/OneDrive - U.S. Department of the Treasury/Coding/PKIValStore/resources/PKITS/X509tests/test1/Trust Anchor CP.01.01.crt";
+            String certPath = "resources/PDTS/Path Discovery Test Suite/Trust Anchor Certs/BasicHTTPURITrustAnchorRootCert.crt";
             
             // Path to the truststore to create
-            String truststorePath = "C:/Users/neumankyle/OneDrive - U.S. Department of the Treasury/Coding/PKIValStore/resources/PKITS/truststore/pkits.jks";
+            String truststorePath = "resources/PDTS/truststore/pdts.jks";
             
             // Truststore password
             String password = "changeit";

@@ -4,6 +4,7 @@ import java.security.cert.CertificateExpiredException;
 import java.security.cert.CertificateNotYetValidException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Set;
 
 import org.apache.commons.logging.Log;
@@ -18,6 +19,7 @@ public class RejectedCertCacheManager {
 	private static RejectedCertCacheManager instance = null;
 	private RejectedCertCache rejectedCache = null;
 	private static final Log LOG = LogFactory.getLog(RejectedCertCacheManager.class);
+	private Date validityDate = null;
 
 
 	public static synchronized RejectedCertCacheManager getInstance() {
@@ -72,7 +74,11 @@ public class RejectedCertCacheManager {
 		 * will be thrown.
 		 */
 		try {
-			caCert.checkValidity();
+			if (validityDate != null) {
+				caCert.checkValidity(validityDate);
+			} else {
+				caCert.checkValidity();
+			}
 		} catch (CertificateExpiredException | CertificateNotYetValidException e) {
 			LOG.info("Certificate not valid: " + caCert.getSubjectX500Principal().getName() + ": " + e.getMessage());
 			this.putRejectedCertificate(caCert, e.getMessage(), certSource);
@@ -121,6 +127,27 @@ public class RejectedCertCacheManager {
 	public synchronized void putRejectedCertificate(X509Certificate caCert, String message, String certSource) {
 		RejectedCertCacheEntry entry = new RejectedCertCacheEntry(caCert, message, certSource);
 		this.rejectedCache.putEntry(entry);
+	}
+
+	/**
+	 * Set the validity date for certificate validity checks during SIA/AIA discovery.
+	 * This is primarily intended for testing with expired test certificates (e.g., PDTS).
+	 * When set, checkValidity() will use this date instead of the current date.
+	 * 
+	 * @param validityDate the date to use for validity checks, or null to use current date
+	 */
+	public void setValidityDate(Date validityDate) {
+		this.validityDate = validityDate;
+	}
+
+	/**
+	 * Get the validity date used for certificate validity checks.
+	 * This is primarily intended for testing with expired test certificates.
+	 * 
+	 * @return the validity date, or null if using current date
+	 */
+	public Date getValidityDate() {
+		return validityDate;
 	}
 
 }
